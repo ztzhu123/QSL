@@ -547,7 +547,7 @@ def plot_fig2(reduced=False):
 
 
 @article_style()
-def plot_subfig(save=False, reduced=True):
+def plot_subfig(reduced=False):
     result = collect_qutrit_result(is_subfig=1)
 
     fig = fig_in_a4(1, 0.14, dpi=200)
@@ -715,11 +715,6 @@ def plot_subfig(save=False, reduced=True):
         dy=0.05,
         transform="fig",
     )
-
-    if save:
-        fig_name = SM_FIG_DIR / "qutrit_subfig.pdf"
-        fig.savefig(fig_name, pad_inches=0)
-        print_info("Saved ", wrap_emph(fig_name.as_posix()))
 
 
 @article_style()
