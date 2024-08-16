@@ -320,3 +320,126 @@ def plot2d(
         return ax, cbar
 
     return ax
+
+
+def plot_ecdf(
+    x,
+    mean=True,
+    median=False,
+    title=None,
+    xlabel=None,
+    ylabel="Integrated histogram",
+    xlim=None,
+    ylim="auto",
+    ax=None,
+    figsize=(6, 4),
+    annot=True,
+    annot_size=None,
+    annot_color="k",
+    annot_yshift=0,
+    annot_suffix=None,
+    unit=None,
+    lw=1.5,
+    precision=2,
+    dash_color=None,
+    constrained_layout=True,
+    sep=" ",
+    **kwargs,
+):
+    if annot_suffix:
+        annot_suffix = f"({annot_suffix})"
+    else:
+        annot_suffix = ""
+    if ax is None:
+        ax = subplot(figsize=figsize)
+    x = np.sort(x)
+    y = np.arange(1, len(x) + 1) / len(x)
+    ax.step(np.hstack([x[0], x]), np.hstack([0, y]), where="post", lw=lw, **kwargs)
+    if title is not None:
+        ax.set_title(title)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        if ylim == "auto":
+            ax.set_ylim(0, 1)
+        else:
+            ax.set_ylim(*ylim)
+    ax.grid("on", ls="--")
+    ylim = ax.get_ylim()
+    color = ax.lines[-1].get_c()
+    alpha = ax.lines[-1].get_alpha()
+    if dash_color is None:
+        dash_color = color
+
+    if mean:
+        mean_value = np.mean(x)
+        ax.vlines(
+            mean_value,
+            *ylim,
+            ls="--",
+            color=dash_color,
+            alpha=alpha,
+            lw=lw,
+        )
+        if annot:
+            s = "%.*f" % (precision, mean_value)
+            if unit:
+                s += f" {unit}"
+            if hasattr(ax.figure, "renderer"):
+                rainbow_text(
+                    ax,
+                    0.02,
+                    0.98 + annot_yshift,
+                    [f"Mean{annot_suffix}:", s],
+                    ["k", color],
+                    ha="left",
+                    va="top",
+                    transform="ax",
+                )
+            else:
+                if annot_size is not None:
+                    fontdict = {"fontsize": annot_size}
+                else:
+                    fontdict = None
+                ax.text(
+                    0.02,
+                    0.98 + annot_yshift,
+                    f"Mean{annot_suffix}:{sep}{s}",
+                    ha="left",
+                    va="top",
+                    transform=ax.transAxes,
+                    fontdict=fontdict,
+                    color=annot_color,
+                )
+        ax.set_ylim(*ylim)
+    if median:
+        median_value = np.median(x)
+        ax.vlines(
+            median_value,
+            *ylim,
+            ls="-.",
+            color=dash_color,
+            alpha=alpha,
+        )
+        if annot:
+            s = "%.*f" % (precision, median_value)
+            if unit:
+                s += f" {unit}"
+            rainbow_text(
+                ax,
+                0.02,
+                0.93 + annot_yshift,
+                [f"Median{annot_suffix}:", s],
+                ["k", color],
+                ha="left",
+                va="top",
+                transform="ax",
+            )
+        ax.set_ylim(*ylim)
+    if constrained_layout:
+        ax.figure.set_constrained_layout(1)
+    return ax

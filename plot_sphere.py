@@ -71,7 +71,6 @@ def plot(
         ax,
         color="#ff5733",
         Omega=Omega,
-        is_qubit=is_qubit,
         scheme=scheme,
         full=full,
         f=f,

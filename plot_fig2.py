@@ -3,13 +3,11 @@ from functools import partial
 
 import h5py
 import matplotlib as mpl
-from matplotlib.patches import FancyArrowPatch
 import numpy as np
 import seaborn as sns
 
-from fig_utils import AxesGroup, annot_alphabet, fig_in_a4, num_to_alphabet, subplot
+from fig_utils import AxesGroup, annot_alphabet, fig_in_a4, subplot
 from path import DATA_DIR
-import plot_sphere
 from plot_toolbox import plot1d as _plot1d
 from styles import (
     AX_LABEL_SIZE,
@@ -39,6 +37,9 @@ sim_alpha = 0.6
 
 marker_colors = ["#6499e9", "#8644a2", "#f57d1f"]
 markers = ["^", "^", "^"]
+marker_size = 40
+
+qutrit_exp_omegas = [-15, -5, 8.5]
 
 
 def plot_bound_mask(
@@ -123,7 +124,7 @@ def plot_bound_mask(
     return ax
 
 
-def plot_phase_2d(ax, phase_data):
+def plot_phase_2d(ax, phase_data, scheme=1):
     plot_line_color = [
         "#86a789",
         "#d37676",
@@ -199,16 +200,20 @@ def plot_phase_2d(ax, phase_data):
     )
     ax.set_ylabel(r"$\Delta E~/~(E_{\rm{max}}-E_{\rm{min}})$", fontsize=AX_LABEL_SIZE)
 
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
+    if scheme == 1:
+        os = qutrit_exp_omegas
+    else:
+        os = [-40, -15, 0]
+    for i, Omega in enumerate(os):
         delta_E, E_minus_Emin, Emax_minus_E, Emax_minus_Emin = phase_data[
-            f"Omega={Omega}"
+            f"point_Omega={Omega}"
         ]
         ax.scatter(
             E_minus_Emin / Emax_minus_Emin,
             delta_E / Emax_minus_Emin,
             marker=markers[i],
             color=marker_colors[i],
-            s=40,
+            s=marker_size,
             clip_on=False,
             zorder=np.inf,
             label=f"{Omega} MHz",
@@ -225,7 +230,7 @@ def plot_phase_2d(ax, phase_data):
     )
 
 
-def plot_phase_1d(ax, phase_data):
+def plot_phase_1d(ax, phase_data, scheme=1):
     xs = phase_data["Omegas"]
     keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es"]
     labels = [
@@ -243,30 +248,36 @@ def plot_phase_1d(ax, phase_data):
         color=["#dd5746", "#76885b", "#535c91"],
         legend_loc="upper center",
     )
+
+    if scheme == 1:
+        os = qutrit_exp_omegas
+    else:
+        os = [-40, -15, 0]
+
     ax.scatter(
-        -2.5,
-        phase_data["Omega=-2.5"][1],
+        os[0],
+        phase_data[f"point_Omega={os[0]}"][1],
         marker=markers[0],
         color=marker_colors[0],
-        s=40,
+        s=marker_size,
         clip_on=False,
         zorder=np.inf,
     )
     ax.scatter(
-        0,
-        phase_data["Omega=0"][0],
+        os[1],
+        phase_data[f"point_Omega={os[1]}"][0],
         marker=markers[1],
         color=marker_colors[1],
-        s=40,
+        s=marker_size,
         clip_on=False,
         zorder=np.inf,
     )
     ax.scatter(
-        2.5,
-        phase_data["Omega=2.5"][2],
+        os[2],
+        phase_data[f"point_Omega={os[2]}"][2],
         marker=markers[2],
         color=marker_colors[2],
-        s=40,
+        s=marker_size,
         clip_on=False,
         zorder=np.inf,
     )
@@ -296,51 +307,55 @@ def rotate_matrix(x, y, angle, x_center=0, y_center=0):
     return xr, yr
 
 
-# ----- qubit -----
-def collect_qubit_result(full=False):
+def collect_qutrit_result(is_subfig=False, full=False):
     result = defaultdict(dict)
-    filename = DATA_DIR / "fig1.h5"
+    if is_subfig:
+        filename = DATA_DIR / "qutrit_subfig.h5"
+    else:
+        filename = DATA_DIR / "fig2.h5"
     with h5py.File(filename, "r") as f:
         for group_name in f.keys():
             group = f[group_name]
             for key in group.keys():
                 result[group_name][key] = group[key][()]
-        keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es", "Emax_minus_Emin"]
-        # with h5py.File(Q11_9_DIR / "phase_1d.h5", "r") as f_phase:
-        f_phase = f["phase_1d"]
-        Omegas = f_phase["Omegas"][()]
-        result["phase_1d"]["Omegas"] = Omegas
-        for key in keys:
-            result["phase_1d"][key] = f_phase[key][()]
-        for Omega in [-2.5, 0, 2.5]:
-            index = np.where(Omega == Omegas)[0].item()
-            result["phase_1d"][f"Omega={Omega}"] = [
-                f_phase[key][()][index] for key in keys
-            ]
+
+    if full:
+        for Omega in qutrit_exp_omegas:
+            group_name = f"Omega={Omega}"
+            filename = DATA_DIR / f"qutrit_pulse_shape.h5"
+            with h5py.File(filename, "r") as f:
+                for key in [
+                    "ts",
+                    "ts_sim",
+                    "ts_pulse_shape",
+                    "probs",
+                    "probs_ideal",
+                    "probs_pulse_shape",
+                ]:
+                    result[group_name][key] = f[group_name][key][()]
     return dict(result)
 
 
-
 @article_style()
-def plot_fig1():
-    result = collect_qubit_result()
+def plot_fig2(reduced=False):
+    result = collect_qutrit_result()
 
-    fig = fig_in_a4(1, 0.3, dpi=200)
-    ag = AxesGroup(9, 3, figs=fig, mark_index=0, indexes_3d=[6, 7, 8])
-    for ax in ag.axes[-3:]:
-        ax.patch.set_alpha(0)
+    fig = fig_in_a4(1, 0.2, dpi=200)
+    ag = AxesGroup(6, 3, figs=fig, mark_index=0)
 
     fig.subplots_adjust(
         hspace=0.4,
         wspace=0.25,
         top=0.93,
-        bottom=-0.3,
+        bottom=0.05,
         left=0.064,
         right=0.928,
     )
 
+    Omegas = qutrit_exp_omegas
+
     # plot bounds
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
+    for i, Omega in enumerate(Omegas):
         case_name = f"Omega={Omega}"
         if not case_name.startswith("Omega"):
             continue
@@ -384,16 +399,9 @@ def plot_fig1():
         )
         index = data["overlaps_sim"].argmin()
         s = 30
-        ax.scatter(
-            ts_sim[index],
-            data["overlaps_sim"][index],
-            s=s,
-            zorder=100,
-            marker="*",
-            clip_on=False,
-            color="#6c0345",
-        )
         o = round(Omega, 3)
+        if o.is_integer():
+            o = int(o)
         ax.text(
             0.5,
             0.97,
@@ -452,7 +460,7 @@ def plot_fig1():
             "cax_lower": cax_lower,
             "orientation": "horizontal",
         }
-        plot_qubit_gen_bound(Omega, ax=ax, cbar_kwargs=kw)
+        plot_qutrit_gen_bound(Omega, ax=ax, cbar_kwargs=kw, reduced=reduced)
         if i == 2:
             handles, labels = ax.get_legend_handles_labels()
             indexes = np.arange(len(handles) - 1).tolist()
@@ -475,7 +483,7 @@ def plot_fig1():
             ax.get_legend().remove()
 
     ag.set_xticks(
-        [0, 20, 40, 60], xlim=[0, 60], fontsize=AX_LABEL_SIZE, axes="row_1", sharex=0
+        [0, 1, 2, 3, 4, 5], xlim=[0, 5], fontsize=AX_LABEL_SIZE, axes="row_1", sharex=0
     )
     ag.set_xlabel(
         "Evolution time (ns)",
@@ -504,8 +512,8 @@ def plot_fig1():
     keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es"]
     Omegas = result["phase_1d"]["Omegas"]
     plot_phase_1d(ag.axes[i], result["phase_1d"])
-    ag.set_xticks([-5, 5], xlim=[Omegas[0], Omegas[-1]], axes=i, sharex=0)
-    ag.set_yticks([0, 5, 10, 15], ylim=[0, 15], axes=i, sharey=0)
+    ag.set_xticks([-15, 15], xlim=[Omegas[0], Omegas[-1]], axes=i, sharex=0)
+    ag.set_yticks([80, 150], ylim=[80, 150], axes=i, sharey=0)
     ag.set_xlabel(
         r"$\Omega~/~2\pi$ (MHz)",
         sharex=False,
@@ -520,17 +528,6 @@ def plot_fig1():
         fontsize=AX_LABEL_SIZE,
         labelpad=-1,
     )
-    # ag.set_yticks([0, 0.5], ylim=[0, 0.5], axes=1, sharey=0)
-
-    # plot Bloch
-    size = 0.2
-    left = 0.1
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
-        ax = ag.axes[i + 6]
-        parent_pos = ag.axes[i + 3].get_position()
-        plot_sphere.plot(ax=ax, Omega=Omega, is_qubit=1)
-        ax.set_position([parent_pos.xmin - 0.068, parent_pos.ymin - 0.04, size, size])
-
 
     # general
     ag.axes[0].axis("off")
@@ -550,13 +547,197 @@ def plot_fig1():
 
 
 @article_style()
-def plot_qubit_gen_bound(Omega, ax=None, colors=None, cbar_kwargs=None, **kwargs):
-    group_name = f"Omega={Omega}"
-    data = collect_qubit_result()[group_name]
-    ts = data["ts_gen_bound"]
-    mask = data["gen_bounds_mask"]
-    bounds = np.ma.masked_where(mask, data["gen_bounds"])
-    alphas = data["alphas"]
+def plot_subfig(save=False, reduced=True):
+    result = collect_qutrit_result(is_subfig=1)
+
+    fig = fig_in_a4(1, 0.14, dpi=200)
+    ag = AxesGroup(3, 3, figs=fig, mark_index=0)
+
+    fig.subplots_adjust(
+        hspace=0.4,
+        wspace=0.25,
+        top=0.83,
+        bottom=0.2,
+        left=0.064,
+        right=0.928,
+    )
+
+    # plot bounds
+    for i, Omega in enumerate(qutrit_exp_omegas):
+        case_name = f"Omega={Omega}"
+        if not case_name.startswith("Omega"):
+            continue
+        Omega = float(case_name.split("=")[-1])
+        if np.isclose(Omega, 0):
+            Omega = 0
+        ax = ag.axes[i]
+        data = result[case_name]
+        # ---- evolution ----
+        ts = data["ts_exp"]
+        ts_sim = data["ts_sim"]
+        ts_bound = data["ts_bound"]
+
+        overlaps_mean = data["overlaps_exp_mean"]
+        overlaps_std = data["overlaps_exp_std"]
+
+        plot1d(
+            ts,
+            overlaps_mean,
+            overlaps_std,
+            ax=ax,
+            lw=LW,
+            ms=MS,
+            mew=MEW,
+            capsize=CAPSIZE,
+            # title=r"$W/2\pi$ = %.1f MHz" % (W),
+            color=colors["evo"],
+            label="Exp.",
+            ls="",
+            zorder=100,
+            clip_on=False,
+        )
+        plot1d(
+            ts_sim,
+            data["overlaps_sim"],
+            lw=LW,
+            color=colors["sim"],
+            ax=ax,
+            alpha=sim_alpha,
+            label="Sim.",
+        )
+        # # ---- bound ----
+        bound_names = ["ML", "ML_star", "MT"]
+        for j, bound_name in enumerate(bound_names):
+            bound = data[f"{bound_name}_bound"]
+            mask = data[f"{bound_name}_bound_mask"]
+            if "star" in bound_name:
+                label = "ML*"
+            else:
+                label = bound_name
+            plot1d(
+                ts_bound[~mask],
+                bound[~mask],
+                ls="--",
+                lw=LW,
+                color=colors[bound_name],
+                label=label,
+                ax=ax,
+                xlim=None,
+                ylim=None,
+                dashes=DASHES,
+            )
+
+        cmap_upper = sns.light_palette("#92ba92", as_cmap=True)
+        cmap_lower = sns.light_palette("#ffa41b", as_cmap=True)
+
+        if i == 0:
+            height = 0.021
+            pos = ag.axes[0].get_position()
+            left = pos.xmin + 0.06
+            right = pos.xmax
+            bottom = pos.ymax + 0.013
+            # width = (right - left - interval) / 2
+            width = 0.045
+
+            cax_lower = fig.add_axes([left, bottom, width, height])
+            cax_upper = fig.add_axes([right - width, bottom, width, height])
+        else:
+            cax_upper = cax_lower = None
+        kw = {
+            "plot_cbar": i == 0,
+            "vmin": 0,
+            "vmax": 4,  # deliberately different from cbar_ylim
+            "cbar_ylim": [0, 2],
+            "cmap_lower": cmap_lower,
+            "cmap_upper": cmap_upper,
+            "cax_upper": cax_upper,
+            "cax_lower": cax_lower,
+            "orientation": "horizontal",
+        }
+        plot_qutrit_gen_bound(Omega, ax=ax, cbar_kwargs=kw, reduced=reduced)
+        if i == 2:
+            handles, labels = ax.get_legend_handles_labels()
+            indexes = np.arange(len(handles) - 1).tolist()
+            indexes.insert(0, -1)
+            indexes[0], indexes[1] = indexes[1], indexes[0]
+            handles = [handles[i] for i in indexes]
+            labels = [labels[i] for i in indexes]
+            ax.legend(
+                handles,
+                labels,
+                labelspacing=0.5,
+                handletextpad=0.3,
+                framealpha=0.2,
+                prop={"size": LEGEND_SIZE - 1},
+                loc="center left",
+                ncol=1,
+                bbox_to_anchor=(1, 0.2, 0.2, 0.6),
+            )
+        else:
+            ax.get_legend().remove()
+
+        o = round(Omega, 3)
+        if o.is_integer():
+            o = int(o)
+        ax.text(
+            0.5,
+            1 - 0.97,
+            rf"$\Omega~/~2\pi=${o} MHz",
+            ha="center",
+            va="bottom",
+            transform=ax.transAxes,
+            fontsize=8,
+        )
+
+    ag.set_xticks([0, 5, 10], xlim=[0, 10], fontsize=AX_LABEL_SIZE, sharex=0)
+    ag.set_xlabel(
+        "Evolution time (ns)",
+        fontsize=AX_LABEL_SIZE,
+        clean_others=1,
+        sharex=0,
+        labelpad=0,
+    )
+    ag.set_yticks([0, 0.5, 1], ylim=[0, 1], fontsize=AX_LABEL_SIZE)
+    ag.set_ylabel(
+        r"$|\mathsf{\langle}\psi(0)|\psi(t)\mathsf{\rangle}|$",
+        fontsize=AX_LABEL_SIZE,
+        clean_others=1,
+        usetex=USE_TEX,
+    )
+
+    # general
+    ag.tick_params(direction="out")
+    ag.grid(False)
+    annot_alphabet(
+        ag.axes[:6],
+        fontsize=FONTSIZE,
+        dx=-0.03,
+        dy=0.05,
+        transform="fig",
+    )
+
+    if save:
+        fig_name = SM_FIG_DIR / "qutrit_subfig.pdf"
+        fig.savefig(fig_name, pad_inches=0)
+        print_info("Saved ", wrap_emph(fig_name.as_posix()))
+
+
+@article_style()
+def plot_qutrit_gen_bound(
+    Omega, ax=None, colors=None, cbar_kwargs=None, reduced=True, **kwargs
+):
+    filename = DATA_DIR / "fig2_qutrit_gen_bound.h5"
+    if Omega.is_integer():
+        Omega = int(Omega)
+    with h5py.File(filename, "r") as f:
+        group_name = f"Omega={Omega}"
+        ts = f[group_name]["ts"][()]
+        bounds = f[group_name]["bounds"][()]
+        mask = f[group_name]["bounds_mask"][()]
+        bounds = np.ma.masked_where(mask, bounds)
+        df = f[group_name]["df"][()]
+        alphas = f[group_name]["alphas"][()]
+        assert f[group_name]["Omega"][()] == Omega
 
     if colors is None:
         colors = ["tab:blue", "tab:orange"]
@@ -572,18 +753,12 @@ def plot_qubit_gen_bound(Omega, ax=None, colors=None, cbar_kwargs=None, **kwargs
     cax_upper = cbar_kwargs.pop("cax_upper", None)
 
     all_indexes = np.arange(len(alphas))
-    # mask = (
-    #     (alphas == 0.0)
-    #     | (alphas == 0.5)
-    #     | (alphas == 1)
-    #     | (alphas == 1.5)
-    #     | (alphas == 2)
-    # )
-    # all_indexes = all_indexes[mask]
-    indexes = all_indexes
-    # indexes = all_indexes[::100].tolist() + [all_indexes[-1]]
-    # indexes = indexes + all_indexes[:40:1].tolist()
-    # indexes = indexes + all_indexes[40:100:10].tolist()
+    if not reduced:
+        indexes = all_indexes
+    else:
+        indexes = all_indexes[::100].tolist() + [all_indexes[-1]]
+        indexes = indexes + all_indexes[:40:1].tolist()
+        indexes = indexes + all_indexes[40:100:10].tolist()
     indexes = np.sort(np.unique(indexes))
     ax = plot_bound_mask(
         ts,

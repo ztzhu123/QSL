@@ -1,15 +1,15 @@
 from collections import defaultdict
+import sys
 from functools import partial
 
 import h5py
 import matplotlib as mpl
-from matplotlib.patches import FancyArrowPatch
 import numpy as np
 import seaborn as sns
 
-from fig_utils import AxesGroup, annot_alphabet, fig_in_a4, num_to_alphabet, subplot
+
+from fig_utils import AxesGroup, annot_alphabet, fig_in_a4, subplot
 from path import DATA_DIR
-import plot_sphere
 from plot_toolbox import plot1d as _plot1d
 from styles import (
     AX_LABEL_SIZE,
@@ -95,7 +95,7 @@ def plot_bound_mask(
             cbar.ax.xaxis.set_ticks_position("top")
             if clabel is not None:
                 cbar.ax.set_ylabel(clabel, fontsize=AX_LABEL_SIZE, rotation=0)
-                cbar.ax.yaxis.set_label_coords(-0.85, -0.2)
+                cbar.ax.yaxis.set_label_coords(-0.9, -0.2)
 
     if label in labels:
         label = None
@@ -199,10 +199,8 @@ def plot_phase_2d(ax, phase_data):
     )
     ax.set_ylabel(r"$\Delta E~/~(E_{\rm{max}}-E_{\rm{min}})$", fontsize=AX_LABEL_SIZE)
 
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
-        delta_E, E_minus_Emin, Emax_minus_E, Emax_minus_Emin = phase_data[
-            f"Omega={Omega}"
-        ]
+    for i, W in enumerate([0, 1.8, 8]):
+        delta_E, E_minus_Emin, Emax_minus_E, Emax_minus_Emin = phase_data[f"W={W}"]
         ax.scatter(
             E_minus_Emin / Emax_minus_Emin,
             delta_E / Emax_minus_Emin,
@@ -211,7 +209,7 @@ def plot_phase_2d(ax, phase_data):
             s=40,
             clip_on=False,
             zorder=np.inf,
-            label=f"{Omega} MHz",
+            label=f"${W}$ MHz",
         )
     ax.legend(
         labelspacing=0.0,
@@ -226,7 +224,7 @@ def plot_phase_2d(ax, phase_data):
 
 
 def plot_phase_1d(ax, phase_data):
-    xs = phase_data["Omegas"]
+    xs = phase_data["Ws"]
     keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es"]
     labels = [
         r"$\Delta E~/~2\pi$",
@@ -241,11 +239,10 @@ def plot_phase_1d(ax, phase_data):
         label=labels,
         legend_size=LEGEND_SIZE - 1,
         color=["#dd5746", "#76885b", "#535c91"],
-        legend_loc="upper center",
     )
     ax.scatter(
-        -2.5,
-        phase_data["Omega=-2.5"][1],
+        0,
+        phase_data["W=0"][0],
         marker=markers[0],
         color=marker_colors[0],
         s=40,
@@ -253,8 +250,8 @@ def plot_phase_1d(ax, phase_data):
         zorder=np.inf,
     )
     ax.scatter(
-        0,
-        phase_data["Omega=0"][0],
+        1.8,
+        phase_data["W=1.8"][1],
         marker=markers[1],
         color=marker_colors[1],
         s=40,
@@ -262,8 +259,8 @@ def plot_phase_1d(ax, phase_data):
         zorder=np.inf,
     )
     ax.scatter(
-        2.5,
-        phase_data["Omega=2.5"][2],
+        8,
+        phase_data["W=8"][1],
         marker=markers[2],
         color=marker_colors[2],
         s=40,
@@ -272,95 +269,45 @@ def plot_phase_1d(ax, phase_data):
     )
 
 
-def rotate_matrix(x, y, angle, x_center=0, y_center=0):
-    """
-    Rotates a point in the xy-plane counterclockwise through an angle about the origin
-    https://en.wikipedia.org/wiki/Rotation_matrix
-    :param x: x coordinate
-    :param y: y coordinate
-    :param x_shift: x-axis shift from origin (0, 0)
-    :param y_shift: y-axis shift from origin (0, 0)
-    :param angle: The rotation angle in degrees
-    :param units: DEGREES (default) or RADIANS
-    :return: Tuple of rotated x and y
-    """
-
-    # Shift to origin (0,0)
-    x = x - x_center
-    y = y - y_center
-
-    # Rotation matrix multiplication to get rotated x & y
-    xr = (x * np.cos(angle)) - (y * np.sin(angle)) + x_center
-    yr = (x * np.sin(angle)) + (y * np.cos(angle)) + y_center
-
-    return xr, yr
-
-
-# ----- qubit -----
-def collect_qubit_result(full=False):
-    result = defaultdict(dict)
-    filename = DATA_DIR / "fig1.h5"
-    with h5py.File(filename, "r") as f:
-        for group_name in f.keys():
-            group = f[group_name]
-            for key in group.keys():
-                result[group_name][key] = group[key][()]
-        keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es", "Emax_minus_Emin"]
-        # with h5py.File(Q11_9_DIR / "phase_1d.h5", "r") as f_phase:
-        f_phase = f["phase_1d"]
-        Omegas = f_phase["Omegas"][()]
-        result["phase_1d"]["Omegas"] = Omegas
-        for key in keys:
-            result["phase_1d"][key] = f_phase[key][()]
-        for Omega in [-2.5, 0, 2.5]:
-            index = np.where(Omega == Omegas)[0].item()
-            result["phase_1d"][f"Omega={Omega}"] = [
-                f_phase[key][()][index] for key in keys
-            ]
-    return dict(result)
-
-
-
 @article_style()
-def plot_fig1():
-    result = collect_qubit_result()
+def plot_fig3():
+    result = collect_cat_result()
 
-    fig = fig_in_a4(1, 0.3, dpi=200)
-    ag = AxesGroup(9, 3, figs=fig, mark_index=0, indexes_3d=[6, 7, 8])
-    for ax in ag.axes[-3:]:
-        ax.patch.set_alpha(0)
+    fig = fig_in_a4(0.6, 0.4, dpi=200)
+    ag = AxesGroup(6, 2, figs=fig, mark_index=0)
 
     fig.subplots_adjust(
         hspace=0.4,
-        wspace=0.25,
+        wspace=0.35,
         top=0.93,
-        bottom=-0.3,
-        left=0.064,
-        right=0.928,
+        bottom=0.08,
+        left=0.12,
+        right=0.975,
     )
 
     # plot bounds
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
-        case_name = f"Omega={Omega}"
-        if not case_name.startswith("Omega"):
+    for i, case_name in enumerate(result):
+        if not case_name.startswith("W"):
             continue
-        Omega = float(case_name.split("=")[-1])
-        if np.isclose(Omega, 0):
-            Omega = 0
-        ax = ag.axes[i + 3]
+        W = float(case_name.split("=")[-1])
+        if np.isclose(W, 0):
+            W = 0
+        ax = ag.axes[2 * i + 1]
         data = result[case_name]
         # ---- evolution ----
-        ts = data["ts_exp"]
+        ts = data["ts"]
         ts_sim = data["ts_sim"]
-        ts_bound = data["ts_bound"]
+        fids_ideal = data["fids_sim"]
 
-        overlaps_mean = data["overlaps_exp_mean"]
-        overlaps_std = data["overlaps_exp_std"]
+        ts_bound = ts_sim
+
+        fids = data["fids"]
+        overlaps = np.sqrt(fids)
 
         plot1d(
             ts,
-            overlaps_mean,
-            overlaps_std,
+            overlaps.mean(0),
+            overlaps.std(0, ddof=1),
             ax=ax,
             lw=LW,
             ms=MS,
@@ -375,33 +322,12 @@ def plot_fig1():
         )
         plot1d(
             ts_sim,
-            data["overlaps_sim"],
+            np.sqrt(fids_ideal),
             lw=LW,
             color=colors["sim"],
             ax=ax,
             alpha=sim_alpha,
             label="Sim.",
-        )
-        index = data["overlaps_sim"].argmin()
-        s = 30
-        ax.scatter(
-            ts_sim[index],
-            data["overlaps_sim"][index],
-            s=s,
-            zorder=100,
-            marker="*",
-            clip_on=False,
-            color="#6c0345",
-        )
-        o = round(Omega, 3)
-        ax.text(
-            0.5,
-            0.97,
-            rf"$\Omega~/~2\pi=${o} MHz",
-            ha="center",
-            va="top",
-            transform=ax.transAxes,
-            fontsize=8,
         )
         # # ---- bound ----
         bound_names = ["ML", "ML_star", "MT"]
@@ -425,24 +351,38 @@ def plot_fig1():
                 dashes=DASHES,
             )
 
+        o = round(W, 3)
+        if float(o).is_integer():
+            o = int(o)
+        ax.text(
+            0.99,
+            0.1,
+            rf"$W~/~2\pi=${o} MHz",
+            ha="right",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=8,
+        )
+
         cmap_upper = sns.light_palette("#92ba92", as_cmap=True)
         cmap_lower = sns.light_palette("#ffa41b", as_cmap=True)
 
-        if i == 0:
+        if i == 2:
             height = 0.012
-            pos = ag.axes[3].get_position()
-            left = pos.xmin + 0.06
+            interval = 0.1
+            pos = ag.axes[1].get_position()
+            left = pos.xmin + 0.105
             right = pos.xmax
             bottom = pos.ymax + 0.013
             # width = (right - left - interval) / 2
-            width = 0.045
+            width = 0.067
 
             cax_lower = fig.add_axes([left, bottom, width, height])
             cax_upper = fig.add_axes([right - width, bottom, width, height])
         else:
             cax_upper = cax_lower = None
         kw = {
-            "plot_cbar": i == 0,
+            "plot_cbar": i == 2,
             "vmin": 0,
             "vmax": 4,  # deliberately different from cbar_ylim
             "cbar_ylim": [0, 2],
@@ -452,8 +392,8 @@ def plot_fig1():
             "cax_lower": cax_lower,
             "orientation": "horizontal",
         }
-        plot_qubit_gen_bound(Omega, ax=ax, cbar_kwargs=kw)
-        if i == 2:
+        plot_cat_gen_bound(W, ax=ax, cbar_kwargs=kw)
+        if i == 0:
             handles, labels = ax.get_legend_handles_labels()
             indexes = np.arange(len(handles) - 1).tolist()
             indexes.insert(0, -1)
@@ -463,100 +403,151 @@ def plot_fig1():
             ax.legend(
                 handles,
                 labels,
-                labelspacing=0.5,
+                labelspacing=0.2,
                 handletextpad=0.3,
                 framealpha=0.2,
                 prop={"size": LEGEND_SIZE - 1},
-                loc="center left",
+                loc="upper right",
                 ncol=1,
-                bbox_to_anchor=(1, 0.2, 0.2, 0.6),
             )
         else:
             ax.get_legend().remove()
 
+    ag.tick_params()
     ag.set_xticks(
-        [0, 20, 40, 60], xlim=[0, 60], fontsize=AX_LABEL_SIZE, axes="row_1", sharex=0
+        np.arange(0, 101, 50),
+        xlim=[0, 100],
+        fontsize=AX_LABEL_SIZE,
+        axes=[1, 3],
+        sharex=0,
+    )
+    ag.set_xticks(
+        np.arange(0, 41, 20), xlim=[0, 40], fontsize=AX_LABEL_SIZE, axes=5, sharex=0
     )
     ag.set_xlabel(
         "Evolution time (ns)",
         fontsize=AX_LABEL_SIZE,
         clean_others=1,
-        axes="row_1",
-        sharex=0,
+        labelpad=0,
+        sharex=1,
+        axes="col_1",
     )
-    ag.set_yticks([0, 0.5, 1], ylim=[0, 1], fontsize=AX_LABEL_SIZE, axes="row_1")
+    ag.set_yticks(
+        [0, 0.5, 1], ylim=[0, 1], fontsize=AX_LABEL_SIZE, sharey=0, axes="col_1"
+    )
     ag.set_ylabel(
         r"$|\mathsf{\langle}\psi(0)|\psi(t)\mathsf{\rangle}|$",
         fontsize=AX_LABEL_SIZE,
         clean_others=1,
         usetex=USE_TEX,
-        axes="row_1",
+        sharey=0,
+        axes="col_1",
+        labelpad=1,
     )
 
+    # plot chain
+    ax = ag.axes[0]
+    ax.patch.set_alpha(0)
+    pos = ax.get_position()
+    ax.set_position([pos.xmin, pos.ymin - 0.05, pos.width, pos.height * 1.4])
+
+    for o in ax.findobj():
+        o.set_clip_on(False)
+    # ax.axis("on")
+    pos = ax.get_position()
+    ymin, ymax = ax.get_ylim()
+    ymin = ymin + 0.13
+    dy = 1 / 6
+    ag.axes[0].axis("off")
+
     # plot phase 2d
-    i = 1
+    i = 2
     plot_phase_2d(ag.axes[i], result["phase_1d"])
     ag.set_xticks([0, 1], xlim=[0, 1], axes=i, sharex=0)
     ag.set_yticks([0, 0.5], ylim=[0, 0.5], axes=i, sharey=0)
 
     # plot phase 1d
-    i = 2
-    keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es"]
-    Omegas = result["phase_1d"]["Omegas"]
+    i = 4
+    keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es", "Emax_minus_Emin"]
+    Ws = result["phase_1d"]["Ws"]
     plot_phase_1d(ag.axes[i], result["phase_1d"])
-    ag.set_xticks([-5, 5], xlim=[Omegas[0], Omegas[-1]], axes=i, sharex=0)
-    ag.set_yticks([0, 5, 10, 15], ylim=[0, 15], axes=i, sharey=0)
+    ag.set_xticks([0, 10], xlim=[Ws[0], Ws[-1]], axes=i, sharex=0)
+    ag.set_yticks([0, 25, 50], ylim=[0, 50], axes=i, sharey=0)
     ag.set_xlabel(
-        r"$\Omega~/~2\pi$ (MHz)",
+        r"$W~/~2\pi$ (MHz)",
         sharex=False,
         axes=i,
         fontsize=AX_LABEL_SIZE,
-        labelpad=-4,
+        labelpad=-2,
     )
     ag.set_ylabel(
         r"Energy / $2\pi$ (MHz)",
         sharey=False,
         axes=i,
         fontsize=AX_LABEL_SIZE,
-        labelpad=-1,
+        # labelpad=-1,
     )
     # ag.set_yticks([0, 0.5], ylim=[0, 0.5], axes=1, sharey=0)
-
-    # plot Bloch
-    size = 0.2
-    left = 0.1
-    for i, Omega in enumerate([-2.5, 0, 2.5]):
-        ax = ag.axes[i + 6]
-        parent_pos = ag.axes[i + 3].get_position()
-        plot_sphere.plot(ax=ax, Omega=Omega, is_qubit=1)
-        ax.set_position([parent_pos.xmin - 0.068, parent_pos.ymin - 0.04, size, size])
-
-
-    # general
-    ag.axes[0].axis("off")
-    ag.tick_params(direction="out")
     ag.grid(False)
-    top = 0.25
+    ag.tick_params(direction="out")
+
     annot_alphabet(
-        ag.axes[:6],
+        np.reshape(np.reshape(ag.axes, (3, 2)), -1, order="F"),
         fontsize=FONTSIZE,
-        dx=-0.03,
-        dy=0.03,
+        dx=-0.06,
+        dy=0.02,
         transform="fig",
-        share_top=[0, 1, 2],
-        left_bond_dict={6: 0, 7: 1, 8: 2},
-        top_dict={6: top, 7: top, 8: top},
+        share_top=[1, 4],
+        top_bond_dict={0: 3},
+        left_bond_dict={0: 1},
     )
+
+
+def collect_cat_result():
+    Ws = [0, 1.8, 8]
+    result = defaultdict(dict)
+    filename = DATA_DIR / "fig3.h5"
+    with h5py.File(filename, "r") as f:
+        for W in Ws:
+            case_name = f"W={W}"
+            for key in f[case_name].keys():
+                result[case_name][key] = f[case_name][key][()]
+            result[case_name]["ts_tomo"] = f[case_name]["ts_tomo"][()]
+            result[case_name]["fids_tomo"] = f[case_name]["fids_tomo"][()]
+            result[case_name]["fids_sim_exp_init_state"] = f[case_name][
+                "fids_sim_exp_init_state"
+            ][()]
+            result[case_name]["ts_sim_exp_init_state"] = f[case_name][
+                "ts_sim_exp_init_state"
+            ][()]
+
+        keys = ["delta_Es", "E_minus_Emins", "Emax_minus_Es", "Emax_minus_Emin"]
+        Ws = f["phase_1d"]["Ws"][()]
+        result["phase_1d"]["Ws"] = Ws
+        for key in keys:
+            result["phase_1d"][key] = f["phase_1d"][key][()]
+        for W in [0, 1.8, 8]:
+            index = np.where(W == Ws)[0].item()
+            result["phase_1d"][f"W={W}"] = [
+                f["phase_1d"][key][()][index] for key in keys
+            ]
+
+    return dict(result)
 
 
 @article_style()
-def plot_qubit_gen_bound(Omega, ax=None, colors=None, cbar_kwargs=None, **kwargs):
-    group_name = f"Omega={Omega}"
-    data = collect_qubit_result()[group_name]
-    ts = data["ts_gen_bound"]
-    mask = data["gen_bounds_mask"]
-    bounds = np.ma.masked_where(mask, data["gen_bounds"])
-    alphas = data["alphas"]
+def plot_cat_gen_bound(W, ax=None, colors=None, cbar_kwargs=None, **kwargs):
+    filename = DATA_DIR / "fig3_cat_gen_bound.h5"
+    if not np.isclose(W, 1.8):
+        W = int(W)
+    with h5py.File(filename, "r") as f:
+        group_name = f"W={W}"
+        ts = f[group_name]["ts"][()]
+        bounds = f[group_name]["bounds"][()]
+        mask = f[group_name]["bounds_mask"][()]
+        bounds = np.ma.masked_where(mask, bounds)
+        alphas = f[group_name]["alphas"][()]
+        assert f[group_name]["W"][()] == W
 
     if colors is None:
         colors = ["tab:blue", "tab:orange"]
@@ -572,18 +563,7 @@ def plot_qubit_gen_bound(Omega, ax=None, colors=None, cbar_kwargs=None, **kwargs
     cax_upper = cbar_kwargs.pop("cax_upper", None)
 
     all_indexes = np.arange(len(alphas))
-    # mask = (
-    #     (alphas == 0.0)
-    #     | (alphas == 0.5)
-    #     | (alphas == 1)
-    #     | (alphas == 1.5)
-    #     | (alphas == 2)
-    # )
-    # all_indexes = all_indexes[mask]
     indexes = all_indexes
-    # indexes = all_indexes[::100].tolist() + [all_indexes[-1]]
-    # indexes = indexes + all_indexes[:40:1].tolist()
-    # indexes = indexes + all_indexes[40:100:10].tolist()
     indexes = np.sort(np.unique(indexes))
     ax = plot_bound_mask(
         ts,
