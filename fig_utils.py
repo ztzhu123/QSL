@@ -1,25 +1,9 @@
 from copy import deepcopy
 import re
 
+from matplotlib import pyplot as plt
+import matplotlib as mpl
 import numpy as np
-
-from qcexp.lazy_modules import matplotlib as mpl
-from qcexp.lazy_modules import pyplot as plt
-from qcexp.utils.asserting import check_in
-
-__all__ = [
-    "smart_axes",
-    "smart_axes_col_major",
-    "subplot",
-    "tight_layout_all",
-    "move_to_monitor",
-    "fig_in_a4",
-    "get_a4_size",
-    "set_label_property",
-    "AxesGroup",
-    "num_to_alphabet",
-    "annot_alphabet",
-]
 
 
 class AxesGroup:
@@ -667,7 +651,6 @@ def get_fig_size(fig):
 
 
 def offset_ticklabels(ax, which="both", offset=0, ratio=1):
-    check_in(which, ["x", "y", "both"])
     if which == "both":
         keys = ["x", "y"]
     else:
@@ -680,7 +663,6 @@ def offset_ticklabels(ax, which="both", offset=0, ratio=1):
 
 
 def set_label_property(ax, which="both", pad=0, visible=None):
-    check_in(which, ["x", "y", "both"])
     if which == "both":
         keys = ["x", "y"]
     else:
@@ -722,7 +704,6 @@ def annot_alphabet(
     when tight_layout=True.
     """
     assert np.iterable(axes)
-    check_in(transform, ["ax", "fig"])
     if transform == "ax":
         for i, ax in enumerate(axes):
             ax.text(
